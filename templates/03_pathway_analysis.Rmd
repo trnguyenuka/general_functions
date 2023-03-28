@@ -1,0 +1,205 @@
+---
+title: "PATHWAY ANALYSIS FOR A GIVEN LIST OF DE GENES"
+author:
+  - "trnguyen@ukaachen.de"
+date: "Last update on `r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    df_print: paged
+    toc: true
+    toc_float:
+      toc_collapsed: false
+    toc_depth: 3
+    number_sections: false
+    theme: lumen
+params:
+  inputdf: NA
+---
+
+```{css zoom-lib-src, echo = FALSE}
+script src = "https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"
+```
+
+```{js zoom-jquery, echo = FALSE}
+ $(document).ready(function() {
+    $('body').prepend('<div class=\"zoomDiv\"><img src=\"\" class=\"zoomImg\"></div>');
+    // onClick function for all plots (img's)
+    $('img:not(.zoomImg)').click(function() {
+      $('.zoomImg').attr('src', $(this).attr('src')).css({width: '100%'});
+      $('.zoomDiv').css({opacity: '1', width: 'auto', border: '1px solid white', borderRadius: '5px', position: 'fixed', top: '50%', left: '50%', marginRight: '-50%', transform: 'translate(-50%, -50%)', boxShadow: '0px 0px 50px #888888', zIndex: '50', overflow: 'auto', maxHeight: '100%'});
+    });
+    // onClick function for zoomImg
+    $('img.zoomImg').click(function() {
+      $('.zoomDiv').css({opacity: '0', width: '0%'}); 
+    });
+  });
+```
+
+
+<style type="text/css">
+    div.datatables { height: auto !important;}
+</style>
+
+
+# Notes
+
+## Over-representation analysis (ORA)
+
+- `ONTOLOGY`: BP, MF, and CC represent Biological Process, Molecular Function, and Cellular Component groups of GO. In this analysis, we use all these three subontologies.
+
+- There are two p-values calculuated by the ORA: `pvalue` and `p.adjust`, we will use only the `p.adjust` and `q.value` to decide if a pathway is enriched or not. Method of False discovery rate: Benjamin - Hochberg. Thresholds are: `p.value <= 0.05` and `p.adjust <= 0.05` and `q.value <= 0.05`. 
+
+- Explanation on the output of ORA summary table:
+
+  - `GeneRatio`: `GeneRatio = k/n`, where `k` is the number of genes within your input gene list (genes of interest) which are annotated to the gene set and `n` is the size of the list of genes of interest. 
+  
+  - `BgRatio`: `BgRatio = M/N`, where `M` is the number of genes within the hypergeometric distribution (the distribution we used to calculate the p-value) that are annotated (either directly or indirectly) to the genes of interest. `N` is the total number of genes in the background distribution (by default, it is all the genes that have annotation). 
+  
+
+- In the ORA, our gene set of interest is the **significantly differentially expressed genes** found from previous analysis. 
+
+## Gene set enrichment analysis (GSEA)
+
+- All genes will be used in the GSEA. Genes are ranked based on their average log2 Fold-change, which was found from the DE analysis. 
+
+- GSEA aggregates the per gene statistics across genes within a gene set, therefore making it possible to detect situations where all genes in a predefined set change in a small but coordinated way.
+
+- Given apriori defined set of gene S, the goal of GSEA is to determine whether the members of S are randomly distributed throughout the ranked gene list (L) or primarily found at the top or bottom.
+
+- There are three key elements of the GSEA method:
+
+  - Calculation of an Enrichment Score.
+  
+  - Estimation of Significance Level of ES.
+  
+  - Adjustment for Multiple Hypothesis Testing.
+
+For all significant pathways, we generate a bar-plot showing all Normalized Enrichment Scores.
+
+
+**CLICK ON THE IMAGE TO ZOOM-IN AND ONE MORE CLICK TO GO BACK TO THE ORIGINAL**
+
+**If the table is empty, that means; no significant pathways were found**
+
+**Updated note:**
+
+`set.seed(42)` and set `seed = TRUE` in the functions of `clusterProfiler` to ensure reproducibility.
+
+
+```{r echo=FALSE, warning=FALSE, results='asis', include=FALSE}
+##### PREPARATION
+inputdf <- params$inputdf
+sig.inputdf <- subset(inputdf, inputdf$p_val_adj <= 0.05)
+```
+
+
+# Over-repreentation analysis (ORA)
+
+## GO - ORA
+```{r echo=FALSE, warning=FALSE, results='asis', fig.width=14, fig.height=14}
+input.gene.list <- sig.inputdf$Gene
+if (length(input.gene.list) != 0){
+  ora.GO <- enrichGO(gene = input.gene.list,
+                    OrgDb = org.Mm.eg.db,
+                    # universe = rownames(tmp.full.list),
+                    ont = "ALL",
+                    pvalueCutoff = 0.05,
+                    qvalueCutoff = 0.05,
+                    readable = TRUE,
+                    keyType = "SYMBOL",
+                    pAdjustMethod = "BH")
+  ora.GO.sum.res <- as.data.frame(ora.GO) 
+} else {
+  ora.GO.sum.res <- data.frame(data = c("There is no significantly differentially expressed genes in the input list"))
+}
+
+ora.GO.sum.res  %>% mutate_if(is.numeric, round, 6) %>% create_dt()
+```
+
+## KEGG - ORA
+```{r echo=FALSE, warning=FALSE, results='asis', fig.width=14, fig.height=14}
+input.gene.list <- sig.inputdf$Gene
+input.gene.list <- bitr(input.gene.list, fromType="ALIAS", toType="ENTREZID", OrgDb="org.Mm.eg.db")
+
+if (length(input.gene.list != 0)){
+  ora.KEGG <-  enrichKEGG(gene = input.gene.list$ENTREZID,
+                 organism     = 'mmu',
+                 pvalueCutoff = 0.05, 
+                 qvalueCutoff = 0.05)
+
+  ora.KEGG.sum.res <- as.data.frame(ora.KEGG) %>%
+    rowwise() %>%
+    mutate(geneSymbol = paste(to_vec(for (item in str_split(geneID, "/")[[1]]) subset(input.gene.list, input.gene.list$ENTREZID == item)$SYMBOL), collapse = ", "))
+} else {
+  ora.KEGG.sum.res <- data.frame(data = c("No DE genes to conduct ORA"))
+}
+
+ora.KEGG.sum.res %>% mutate_if(is.numeric, round, 6) %>% create_dt()
+```
+
+# Gene set enrichment analysis (GSEA)
+
+## GO - GSEA
+```{r echo=FALSE, warning=FALSE, results='asis', fig.width=14, fig.height=14}
+input.gene.list <- inputdf$avg_log2FC
+names(input.gene.list) <- inputdf$Gene
+
+if (length(input.gene.list != 0)){
+  GSEA.GO <- gseGO(geneList = input.gene.list,
+              OrgD = org.Mm.eg.db,
+              ont = "ALL",
+              minGSSize = 100,
+              maxGSSize = 500,
+              pvalueCutoff = 0.05,
+              verbose = TRUE,
+              keyType = "SYMBOL", seed = TRUE)
+  GSEA.GO.sum.res <- as.data.frame(GSEA.GO) 
+} else {
+  GSEA.GO.sum.res <- data.frame(data = c("No DE genes to conduct ORA"))
+}
+
+GSEA.GO.sum.res %>% mutate_if(is.numeric, round, 6) %>% create_dt()
+```
+
+```{r echo=FALSE, warning=FALSE, results='asis', fig.width=14, fig.height=14}
+plot.df <- GSEA.GO.sum.res %>% subset(select = c(Description, NES)) %>% arrange(desc(NES))
+p <- ggplot(data = plot.df, aes(y = reorder(Description, NES), x = NES)) + geom_bar(stat = "identity")    
+print(p)
+```
+
+
+
+## KEGG - GSEA
+```{r echo=FALSE, warning=FALSE, results='asis', fig.width=14, fig.height=14}
+convertdf <- bitr(inputdf$Gene, fromType="ALIAS", toType="ENTREZID", OrgDb="org.Mm.eg.db")
+
+convertdf <- merge(convertdf, inputdf, by.x = "ALIAS", by.y = "Gene") %>%
+  arrange(desc(avg_log2FC))
+convertdf <- convertdf[!duplicated(convertdf$ALIAS), ] %>% arrange(desc(avg_log2FC))
+
+input.gene.list <- convertdf$avg_log2FC
+names(input.gene.list) <- convertdf$ENTREZID
+
+if (length(input.gene.list) != 0){
+  GSEA.KEGG <- gseKEGG(geneList = input.gene.list,
+              organism = "mmu",
+              minGSSize = 100,
+              maxGSSize = 500,
+              pvalueCutoff = 0.05,
+              verbose = FALSE, seed = TRUE)
+  GSEA.KEGG.sum.res <- as.data.frame(GSEA.KEGG) 
+} else {
+  GSEA.KEGG.sum.res <- data.frame(data = c("There is no significantly differentially expressed genes in the input list"))
+}
+
+GSEA.KEGG.sum.res %>% mutate_if(is.numeric, round, 6) %>% create_dt()
+```
+
+
+```{r echo=FALSE, warning=FALSE, results='asis', fig.width=14, fig.height=14}
+plot.df <- GSEA.KEGG.sum.res %>% subset(select = c(Description, NES)) %>% arrange(desc(NES))
+p <- ggplot(data = plot.df, aes(y = reorder(Description, NES), x = NES)) + geom_bar(stat = "identity")    
+print(p)
+```
+
+

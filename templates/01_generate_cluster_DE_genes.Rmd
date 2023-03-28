@@ -1,0 +1,166 @@
+---
+title: "UMAP and Cluster marker identification for `r params$dataset_name`"
+author:
+  - "trnguyen@ukaachen.de"
+date: "Last update on `r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    df_print: paged
+    toc: true
+    toc_float:
+      toc_collapsed: false
+    toc_depth: 3
+    number_sections: false
+    theme: lumen
+params:
+  path.to.input.sobj: NA
+  path.to.wd: NA
+  dataset_name: NA
+---
+
+```{css zoom-lib-src, echo = FALSE}
+script src = "https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"
+```
+
+```{js zoom-jquery, echo = FALSE}
+ $(document).ready(function() {
+    $('body').prepend('<div class=\"zoomDiv\"><img src=\"\" class=\"zoomImg\"></div>');
+    // onClick function for all plots (img's)
+    $('img:not(.zoomImg)').click(function() {
+      $('.zoomImg').attr('src', $(this).attr('src')).css({width: '100%'});
+      $('.zoomDiv').css({opacity: '1', width: 'auto', border: '1px solid white', borderRadius: '5px', position: 'fixed', top: '50%', left: '50%', marginRight: '-50%', transform: 'translate(-50%, -50%)', boxShadow: '0px 0px 50px #888888', zIndex: '50', overflow: 'auto', maxHeight: '100%'});
+    });
+    // onClick function for zoomImg
+    $('img.zoomImg').click(function() {
+      $('.zoomDiv').css({opacity: '0', width: '0%'}); 
+    });
+  });
+```
+
+
+<style type="text/css">
+    div.datatables { height: auto !important;}
+</style>
+
+# General information
+
+- Path to the original input Seurat R.object before removing clusters `r clusters.to.be.removed`: `r file.path(path.to.input, name.of.s.obj)`
+
+- Path to the Seurat R.object after removing clusters `r clusters.to.be.removed`: `r file.path(path.to.output, sprintf("%s.%s", status, save.obj.name))`
+
+- Input data R.object: `r basename(params$path.to.input.sobj)`
+
+- Removed clusters: `r clusters.to.be.removed`
+
+- Re-integrating data from multiple samples after removing clusters: `r with.re.integration`
+
+
+
+
+```{r echo=FALSE, warning=FALSE, results='hide', message=FALSE}
+#####----------------------------------------------------------------------#####
+#
+# 02: VDJ data analysis on the 2nd dataset, focus on YFP cells and non YFP cells
+#
+# trnguyen@ukaachen.de
+#####----------------------------------------------------------------------#####
+
+path.to.wd <- params$path.to.wd
+path.to.input.sobj <- params$path.to.input.sobj
+
+source(file.path(path.to.wd, "00_import_libraries.R"))
+source(file.path(path.to.wd, "00_helper_functions.R"))
+
+s.obj <- readRDS(path.to.input.sobj)
+#####----------------------------------------------------------------------#####
+# CONFIGURATIONS AND PREPARATION
+#####----------------------------------------------------------------------#####
+```
+
+
+```{r echo=FALSE, warning=FALSE, results='asis', message=FALSE, fig.width=14, fig.height=10, dev='svg'}
+if ("INTE_UMAP" %in% names(s.obj@reductions)){
+  p <- DimPlot(object = s.obj, reduction = "INTE_UMAP", label = TRUE, label.box = TRUE, repel = TRUE, pt.size = 1)  
+} else {
+  p <- DimPlot(object = s.obj, reduction = "RNA_UMAP", label = TRUE, label.box = TRUE, repel = TRUE, pt.size = 1)
+}
+p
+```
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+cluster.markers <- FindAllMarkers(object = s.obj, assay = "RNA", test.use = "wilcox")
+cluster.markers.raw <- cluster.markers
+
+cluster.markers <- subset(cluster.markers, cluster.markers$p_val_adj <= 0.05 & cluster.markers$avg_log2FC >= 0)
+```
+
+## Tables of all cluster marker genes {.tabset}
+```{r echo=FALSE, include=FALSE}
+cluster.markers %>% create_dt()
+```
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+
+for (cluster.id in sort(unique(cluster.markers$cluster))){
+  tmp.cluster.markers <- subset(cluster.markers, cluster.markers$cluster == cluster.id) %>% arrange(desc(avg_log2FC))
+  
+  writexl::write_xlsx(x = tmp.cluster.markers, 
+                    file.path(path.to.wd, "output", 
+                              sprintf("%s.%s", status, str_replace(save.obj.name, ".rds", ".xlsx"))))
+  
+  writexl::write_xlsx(x = subset(cluster.markers.raw, cluster.markers.raw$cluster == cluster.id) %>% arrange(desc(avg_log2FC)), 
+                    file.path(path.to.wd, "output", 
+                              sprintf("%s.%s", status, str_replace(save.obj.name, ".rds", ".raw.xlsx"))))
+
+  tmp.cluster.markers <- tmp.cluster.markers %>% mutate_if(is.numeric, round, 6) 
+  
+  cat(paste("\n\n### Cluster: ", cluster.id, "##\n"))
+  print( htmltools::tagList(datatable(tmp.cluster.markers, extensions = 'Buttons',
+                filter = "top",
+                options = list(dom = 'Blfrtip',
+                               buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),
+                               lengthMenu = list(c(10,25,50,-1),
+                                                 c(10,25,50,"All")),
+                               columnDefs = list(list(
+                                 targets = "_all",
+                                 render = JS(
+                                   "function(data, type, row, meta) {",
+                                   "return type === 'display' && data != null && data.length > 100 ?",
+                                   "'<span title=\"' + data + '\">' + data.substr(0, 100) + '...</span>' : data;",
+                                   "}")
+                               ))
+                ))))
+  cat("\n \n")
+}
+
+```
+
+
+## Top-12 cluster marker genes `FeaturePlot` {.tabset}
+Here we just show the top-12 genes (ranked by `avg_log2FC`) for each cluster. 
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+for (cluster.id in sort(unique(s.obj@meta.data$seurat_clusters))){
+  DefaultAssay(s.obj) <- "RNA"
+  cat(sprintf("### Cluster %s \n", cluster.id))
+  tmp.cluster.markers <- subset(cluster.markers, cluster.markers$cluster == cluster.id) %>% arrange(desc(avg_log2FC))
+  p <- FeaturePlot(object = s.obj, reduction = "INTE_UMAP", features = head(tmp.cluster.markers, 12)$gene, ncol = 3, label = TRUE, pt.size = 0.5, label.size = 5, label.color = "red")  
+  print(p)
+  cat("\n \n")
+}
+```
+
+## Top-12 cluster marker genes `Violin Plot` {.tabset}
+Here we just show the top-12 genes (ranked by `avg_log2FC`) for each cluster. 
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+for (cluster.id in sort(unique(s.obj@meta.data$seurat_clusters))){
+  DefaultAssay(s.obj) <- "RNA"
+  cat(sprintf("### Cluster %s \n", cluster.id))
+  tmp.cluster.markers <- subset(cluster.markers, cluster.markers$cluster == cluster.id) %>% arrange(desc(avg_log2FC))
+  p <- VlnPlot(object = s.obj, features = head(tmp.cluster.markers, 12)$gene)  
+  print(p)
+  cat("\n \n")
+}
+```

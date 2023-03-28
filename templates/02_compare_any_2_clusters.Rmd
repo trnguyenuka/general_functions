@@ -1,0 +1,129 @@
+---
+title: "DE analysis between 2 clusters, `r params$name_2_clusters`"
+author:
+  - "trnguyen@ukaachen.de"
+date: "Last update on `r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    df_print: paged
+    toc: true
+    toc_float:
+      toc_collapsed: false
+    toc_depth: 3
+    number_sections: false
+    theme: lumen
+params:
+  s.obj: NA
+  cluster1: NA
+  cluster2: NA
+  name_2_clusters: NA
+  path.to.wd: NA
+---
+
+```{css zoom-lib-src, echo = FALSE}
+script src = "https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"
+```
+
+```{js zoom-jquery, echo = FALSE}
+ $(document).ready(function() {
+    $('body').prepend('<div class=\"zoomDiv\"><img src=\"\" class=\"zoomImg\"></div>');
+    // onClick function for all plots (img's)
+    $('img:not(.zoomImg)').click(function() {
+      $('.zoomImg').attr('src', $(this).attr('src')).css({width: '100%'});
+      $('.zoomDiv').css({opacity: '1', width: 'auto', border: '1px solid white', borderRadius: '5px', position: 'fixed', top: '50%', left: '50%', marginRight: '-50%', transform: 'translate(-50%, -50%)', boxShadow: '0px 0px 50px #888888', zIndex: '50', overflow: 'auto', maxHeight: '100%'});
+    });
+    // onClick function for zoomImg
+    $('img.zoomImg').click(function() {
+      $('.zoomDiv').css({opacity: '0', width: '0%'}); 
+    });
+  });
+```
+
+
+<style type="text/css">
+    div.datatables { height: auto !important;}
+</style>
+
+
+# General information
+
+- Path to the input Seurat R.object before removing clusters `r cluster1` vs `r cluster2`: `r file.path(path.to.input, name.of.s.obj)`
+
+**Note on the logFC order**:
+
+- **Positive**  `avg_log2FC` indicates that the gene is *more expressed* in the first group, Cluster `r cluster1`.
+- **Negative**  `avg_log2FC` indicates that the gene is *more expressed* in the second group, Cluster `r cluster2`.
+
+
+```{r echo=FALSE, warning=FALSE, results='hide', message=FALSE}
+#####----------------------------------------------------------------------#####
+#
+# 02: VDJ data analysis on the 2nd dataset, focus on YFP cells and non YFP cells
+#
+# trnguyen@ukaachen.de
+#####----------------------------------------------------------------------#####
+
+path.to.wd <- params$path.to.wd
+
+
+source(file.path(path.to.wd, "00_import_libraries.R"))
+source(file.path(path.to.wd, "00_helper_functions.R"))
+
+s.obj <- params$s.obj
+cluster1 <- params$cluster1
+cluster2 <- params$cluster2
+
+```
+
+
+# UMAP: Two selected clusters to perform DEA
+```{r echo=FALSE, warning=FALSE, results='asis', message=FALSE, fig.width=14, fig.height=10, dev='svg'}
+if ("INTE_UMAP" %in% names(s.obj@reductions)){
+  p <- DimPlot(object = s.obj, reduction = "INTE_UMAP", label = TRUE, label.box = TRUE, repel = TRUE, pt.size = 1)  
+} else {
+  p <- DimPlot(object = s.obj, reduction = "RNA_UMAP", label = TRUE, label.box = TRUE, repel = TRUE, pt.size = 1)
+}
+p
+```
+
+# DEA results
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+diff.markers <- FindMarkers(object = s.obj, assay = "RNA", test.use = "wilcox", ident.1 = cluster1, ident.2 = cluster2) %>% rownames_to_column("Gene")
+diff.markers.raw <- diff.markers
+
+library(writexl)
+write_xlsx(x = as.data.frame(diff.markers.raw), path = file.path(path.to.wd, "output", sprintf("%s_cluster_%s_vs_cluster_%s.raw.xlsx", save.dataset.name, cluster1, cluster2)))
+
+diff.markers <- subset(diff.markers, diff.markers$p_val_adj <= 0.05) %>% rowwise() %>%
+  mutate(abs_avg_log2FC = abs(avg_log2FC)) %>%
+  arrange(desc(abs_avg_log2FC)) 
+
+write_xlsx(x = as.data.frame(diff.markers), path = file.path(path.to.wd, "output", sprintf("%s_cluster_%s_vs_cluster_%s.xlsx", save.dataset.name, cluster1, cluster2)))
+
+
+```
+
+## Tables of all cluster marker genes {.tabset}
+```{r echo=FALSE, include=TRUE, results='asis'}
+diff.markers %>% mutate_if(is.numeric, round, 6)  %>% create_dt()
+```
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis'}
+  if (nrow(diff.markers) != 0){
+    top10.up.genes <- subset(diff.markers, diff.markers$avg_log2FC >= 0) %>% head(12)
+    top10.down.genes <- subset(diff.markers, diff.markers$avg_log2FC < 0) %>% arrange(desc(abs_avg_log2FC)) %>% head(12)
+    top10.up.genes$Status <- "Up"
+    top10.down.genes$Status <- "Down"
+    
+    top10.concat <- rbind(top10.up.genes, top10.down.genes) %>% as.data.frame() %>% arrange(desc(avg_log2FC))
+    top10.concat$Gene <- factor(top10.concat$Gene, levels = top10.concat$Gene)
+    p <- ggplot(data = top10.concat, aes(x = Gene, y = avg_log2FC, fill = Status)) + geom_bar(stat = "identity") + coord_flip()
+  } else {
+    chosen.title <- "No DE genes found or not enough cells to conduct DE test!"
+    p <- ggplot() + ggtitle(chosen.title)
+  }
+  
+  print(p)
+```
+
