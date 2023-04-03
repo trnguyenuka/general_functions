@@ -3,32 +3,43 @@ rm(list = ls())
 
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 wd <- getwd()
-source("00_import_libraries.R")
-source("00_helper_functions.R")
+source(file.path(wd, "00_import_libraries.R"))
+source(file.path(wd, "00_helper_functions.R"))
 
 #####----------------------------------------------------------------------#####
 # INPUT ARGUMENTS
 #####----------------------------------------------------------------------#####
-path.to.input <- "./input"
+path.to.input <- file.path(wd, "input")
 
-path.to.output <- "./output"
+path.to.output <- file.path(wd, "output")
 dir.create(path.to.output, showWarnings = FALSE, recursive = TRUE)
 
-path.to.html <- "./html"
+path.to.html <- file.path(wd, "html")
 dir.create(path.to.output, showWarnings = FALSE, recursive = TRUE)
 
-path.to.template <- "./templates"
+path.to.template <- file.path(wd, "templates")
 
-clusters.to.be.removed <- c(7, 9)
+clusters.to.be.removed <- c(16)
 
-name.of.s.obj <- "merged_all_first_dataset_BCR.integrated.rds" 
+name.of.s.obj <- "1st_dataset_removed_7_9.without_reInt.rds" 
 
 with.re.integration <- FALSE
 
-save.dataset.name <- "test"  # <<<<< CHANGE HERE
+if (with.re.integration == TRUE){
+  status <- "with_reInt"
+} else if (with.re.integration == FALSE){
+  status <- "without_reInt"
+} else {
+  stop("The parameter with.re.integration must be either TRUE or FALSE")
+}
 
-save.obj.name <- sprintf("%s_removed_%s.rds", save.dataset.name, paste(clusters.to.be.removed, collapse = "_"))
-save.html.name <- sprintf("%s_%s.html", save.dataset.name, paste(clusters.to.be.removed, collapse = "_"))
+save.dataset.name <- "1st_dataset_removed_7_9"  # <<<<< CHANGE HERE
+
+save.obj.name <- sprintf("%s_removed_%s.%s.rds", save.dataset.name, paste(clusters.to.be.removed, collapse = "_"), status)
+save.html.name <- str_replace(save.obj.name, ".rds", ".html")
+
+path.to.output <- file.path(path.to.output, str_replace(save.obj.name, ".rds", ""))
+dir.create(path.to.output, showWarnings = FALSE, recursive = TRUE)
 
 ##### QUICK CHECK
 fetch.available.objs <- basename(Sys.glob(file.path(path.to.input, "*")))
@@ -65,7 +76,6 @@ DefaultAssay(s.obj.removed) <- "RNA"
 
 if (with.re.integration == TRUE){
   
-  status <- "with_reInt"
   data.list <- SplitObject(s.obj.removed, split.by = "name")
   data.list <- lapply(X = data.list, FUN = function(x) {
     x <- NormalizeData(x)
@@ -102,7 +112,7 @@ if (with.re.integration == TRUE){
   
 } else {
   status <- "without_reInt"
-    
+  
   s.obj.removed <- NormalizeData(s.obj.removed) # ---> use Log Normalized
   s.obj.removed <- FindVariableFeatures(s.obj.removed, selection.method = "vst")
   
@@ -119,14 +129,15 @@ if (with.re.integration == TRUE){
   s.obj.removed <- FindClusters(s.obj.removed, resolution = cluster.resolution, random.seed = chosen.seed)
 }
 
-saveRDS(s.obj.removed, file.path(path.to.output, sprintf("%s.%s", status, save.obj.name)))
+saveRDS(s.obj.removed, file.path(path.to.output, save.obj.name))
 
 ##### 2. Generate report from defined templates
 rmarkdown::render(input = file.path(path.to.template, "01_generate_cluster_DE_genes.Rmd"), 
                   params = list(
-                    path.to.input.sobj = file.path(wd, path.to.output, sprintf("%s.%s", status, save.obj.name)),
+                    path.to.input.sobj = file.path(path.to.output, save.obj.name),
                     path.to.wd = wd,
-                    dataset_name = save.obj.name
+                    dataset_name = save.obj.name,
+                    path.to.output = path.to.output
                   ),
                   output_file = save.html.name,
                   output_dir = path.to.html)  

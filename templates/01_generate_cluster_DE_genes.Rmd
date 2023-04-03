@@ -16,6 +16,7 @@ params:
   path.to.input.sobj: NA
   path.to.wd: NA
   dataset_name: NA
+  path.to.output : NA
 ---
 
 ```{css zoom-lib-src, echo = FALSE}
@@ -104,14 +105,18 @@ cluster.markers %>% create_dt()
 
 for (cluster.id in sort(unique(cluster.markers$cluster))){
   tmp.cluster.markers <- subset(cluster.markers, cluster.markers$cluster == cluster.id) %>% arrange(desc(avg_log2FC))
+  dir.create(file.path(path.to.output, "raw"), showWarnings = FALSE, recursive = TRUE)
+  dir.create(file.path(path.to.output, "up_DEGs"), showWarnings = FALSE, recursive = TRUE)
   
   writexl::write_xlsx(x = tmp.cluster.markers, 
-                    file.path(path.to.wd, "output", 
-                              sprintf("%s.%s", status, str_replace(save.obj.name, ".rds", ".xlsx"))))
+                    file.path(path.to.output, "up_DEGs",
+                              sprintf("%s.%s", status, str_replace(save.obj.name, ".rds",
+                                                                   sprintf("%s.xlsx", cluster.id)))))
   
   writexl::write_xlsx(x = subset(cluster.markers.raw, cluster.markers.raw$cluster == cluster.id) %>% arrange(desc(avg_log2FC)), 
-                    file.path(path.to.wd, "output", 
-                              sprintf("%s.%s", status, str_replace(save.obj.name, ".rds", ".raw.xlsx"))))
+                    file.path(path.to.output, "raw",
+                              sprintf("%s.%s", status, str_replace(save.obj.name, ".rds",
+                                                                   sprintf("%s.raw.xlsx", cluster.id)))))
 
   tmp.cluster.markers <- tmp.cluster.markers %>% mutate_if(is.numeric, round, 6) 
   
