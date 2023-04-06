@@ -1,0 +1,375 @@
+---
+title: "BCR data analysis, first dataset"
+author:
+  - "trnguyen@ukaachen.de"
+date: "Last update on `r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    df_print: paged
+    toc: true
+    toc_float:
+      toc_collapsed: false
+    toc_depth: 3
+    number_sections: true
+    theme: lumen
+params:
+  path.to.input.sobj: NA
+  path.to.wd: NA
+---
+
+
+```{css zoom-lib-src, echo = FALSE}
+script src = "https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"
+```
+
+```{js zoom-jquery, echo = FALSE}
+ $(document).ready(function() {
+    $('body').prepend('<div class=\"zoomDiv\"><img src=\"\" class=\"zoomImg\"></div>');
+    // onClick function for all plots (img's)
+    $('img:not(.zoomImg)').click(function() {
+      $('.zoomImg').attr('src', $(this).attr('src')).css({width: '100%'});
+      $('.zoomDiv').css({opacity: '1', width: 'auto', border: '1px solid white', borderRadius: '5px', position: 'fixed', top: '50%', left: '50%', marginRight: '-50%', transform: 'translate(-50%, -50%)', boxShadow: '0px 0px 50px #888888', zIndex: '50', overflow: 'auto', maxHeight: '100%'});
+    });
+    // onClick function for zoomImg
+    $('img.zoomImg').click(function() {
+      $('.zoomDiv').css({opacity: '0', width: '0%'}); 
+    });
+  });
+```
+
+<style type="text/css">
+    div.datatables { height: auto !important;}
+</style>
+
+
+```{r echo=FALSE, warning=FALSE, results='hide', message=FALSE}
+#####----------------------------------------------------------------------#####
+#
+# 02: VDJ data analysis on the 2nd dataset, focus on YFP cells and non YFP cells
+#
+# trnguyen@ukaachen.de
+#####----------------------------------------------------------------------#####
+
+# clean up 
+# gc()
+# rm(list = ls())
+
+#####----------------------------------------------------------------------#####
+# CONFIGURATIONS AND PREPARATION
+#####----------------------------------------------------------------------#####
+path.to.wd <- params$path.to.wd
+path.to.input.sobj <- params$path.to.input.sobj
+
+path.to.wd <- "/home/hieunguyen/CRC1382/src_2023/general_functions"
+path.to.input.sobj <- "/home/hieunguyen/CRC1382/src_2023/general_functions/output/1st_dataset_removed_7_9_t_16_removed_9.without_reInt/1st_dataset_removed_7_9_t_16_removed_9.without_reInt.rds"
+
+source(file.path(path.to.wd, "00_import_libraries.R"))
+source(file.path(path.to.wd, "00_helper_functions.R"))
+
+s.obj <- readRDS(path.to.input.sobj)
+meta.data <- s.obj@meta.data
+
+```
+
+
+```{r echo=FALSE, warning=FALSE, results='asis', message=FALSE}
+#####----------------------------------------------------------------------#####
+# DIMENSIONAL REDUCTION PLOT
+#####----------------------------------------------------------------------#####
+DimPlot(object = s.obj, reduction = "INTE_UMAP", label = TRUE, label.box = TRUE, repel = TRUE)
+```
+
+# Number of cells
+## In each sample, each cluster
+```{r echo=FALSE, warning=FALSE, results='asis', message=FALSE}
+count.cell.sample <- subset(s.obj@meta.data, select = c(name, seurat_clusters)) %>% table() %>% as.data.frame() %>%
+  pivot_wider(names_from = "seurat_clusters", values_from = "Freq") %>% column_to_rownames("name")
+
+for (col in colnames(count.cell.sample)){
+  count.cell.sample[[col]] <- 100 * count.cell.sample[[col]]/sum(count.cell.sample[[col]])
+}
+```
+
+## Plot: % cells in each sample in each clusters
+```{r}
+bar.plot.pct <- subset(count.cell.sample %>% rownames_to_column("Sample")) %>% pivot_longer(!Sample, names_to = "seurat_clusters", values_to = "pct") %>%
+  ggplot(aes(x = seurat_clusters, y = pct, fill = Sample)) + geom_bar(stat = "identity", position = "dodge") 
+```
+
+## In each colonisation, each cluster
+```{r echo=FALSE, warning=FALSE, results='asis', message=FALSE}
+count.cell.colonisation <- subset(s.obj@meta.data, select = c(stage, seurat_clusters)) %>% table() %>% as.data.frame() %>%
+  pivot_wider(names_from = "seurat_clusters", values_from = "Freq") %>% column_to_rownames("stage")
+
+for (col in colnames(count.cell.colonisation)){
+  count.cell.colonisation[[col]] <- 100 * count.cell.colonisation[[col]]/sum(count.cell.colonisation[[col]])
+}
+```
+
+## Plot: % cells in each colonisation in each clusters
+```{r}
+bar.plot.pct <- subset(count.cell.colonisation %>% rownames_to_column("Colonisation")) %>% pivot_longer(!Colonisation, names_to = "seurat_clusters", values_to = "pct") %>%
+  ggplot(aes(x = seurat_clusters, y = pct, fill = Colonisation)) + geom_bar(stat = "identity", position = "dodge") 
+```
+
+
+# VDJ data tables
+
+```{r echo=FALSE, warning=FALSE, results='asis', message=FALSE}
+countVDJ <- hash()
+for (sample.id in unique(s.obj$name)){
+  tmp.count <- subset(s.obj, name == sample.id)@meta.data %>% subset(select = c(CTstrict)) %>% table() %>% 
+    as.data.frame() %>%
+    arrange(desc(Freq))
+  colnames(tmp.count) <- c("CTstrict", "count")
+  countVDJ[[sample.id]] <- tmp.count
+}
+```
+
+## All clones
+### Group by CTstrict and count {.tabset}
+Number of cells in each clone in each sample. 
+```{r echo=FALSE, include=FALSE}
+countVDJ$`17_MM9_Ecoli` %>% create_dt()
+```
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+
+for (sample.id in names(countVDJ)){
+  tmp.table <- countVDJ[[sample.id]]  
+  cat(paste("\n\n#### Sample: ", sample.id, "##\n"))
+  print( htmltools::tagList(datatable(tmp.table, extensions = 'Buttons',
+                filter = "top",
+                options = list(dom = 'Blfrtip',
+                               buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),
+                               lengthMenu = list(c(10,25,50,-1),
+                                                 c(10,25,50,"All")),
+                               columnDefs = list(list(
+                                 targets = "_all",
+                                 render = JS(
+                                   "function(data, type, row, meta) {",
+                                   "return type === 'display' && data != null && data.length > 100 ?",
+                                   "'<span title=\"' + data + '\">' + data.substr(0, 100) + '...</span>' : data;",
+                                   "}")
+                               ))
+                ))))
+  cat("\n \n")
+}
+
+```
+
+
+
+# VDJ Clone UMAP
+
+## Top-clone, all cells from all samples 
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=14, fig.height=10}
+for (sample.id in names(countVDJ)){
+  cat(sprintf("### Sample: %s {.tabset} \n", sample.id))
+  clone.table <- countVDJ[[sample.id]]
+
+  count.clone.table.gt10 <- subset(clone.table, clone.table$count >= 5)
+  
+  split.clones <- split(count.clone.table.gt10$CTstrict, ceiling(seq_along(count.clone.table.gt10$CTstrict) / 9))
+  
+  for (i in seq(length(split.clones))){
+    cat(sprintf("#### Part %s \n", i))
+    
+    list_of_clones <- split.clones[[i]]
+    do.call(patchwork::wrap_plots, lapply(list_of_clones, function(x) {
+        chosen.ctaa <- x
+        cell.names <- row.names(subset(s.obj@meta.data, CTstrict == x))
+        p <- DimPlot(object = s.obj,
+                     cells.highlight = cell.names,
+                     cols = "gray", order = TRUE,
+                     sizes.highlight = 2, pt.size = 0.5,
+                     label = TRUE,
+                     label.size = 6, 
+                     label.color = "blue",
+                     label.box = FALSE, reduction = "INTE_UMAP") +
+          theme(plot.title = element_text(size = 8, face = "bold")) +
+          labs(title = x, x = "UMAP_1", y = "UMAP_2", color = "Cells") +
+          scale_color_manual(labels = c("others", "selected_clone"), values = c("gray", "#f77281"))
+        return(p)
+      })) -> subplot_all_top_20_clonaltypes
+    print(subplot_all_top_20_clonaltypes)
+    cat("\n \n")
+  }
+  cat("\n")
+}
+
+```
+
+## Top-clone, all cells from each sample 
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=14, fig.height=10}
+for (sample.id in names(countVDJ)){
+  subset_s.obj <- subset(s.obj, name == sample.id)
+  cat(sprintf("### Sample: %s {.tabset} \n", sample.id))
+  clone.table <- countVDJ[[sample.id]]
+
+  count.clone.table.gt10 <- subset(clone.table, clone.table$count >= 5)
+  
+  split.clones <- split(count.clone.table.gt10$CTstrict, ceiling(seq_along(count.clone.table.gt10$CTstrict) / 9))
+  
+  for (i in seq(length(split.clones))){
+    cat(sprintf("#### Part %s \n", i))
+    
+    list_of_clones <- split.clones[[i]]
+    do.call(patchwork::wrap_plots, lapply(list_of_clones, function(x) {
+        chosen.ctaa <- x
+        cell.names <- row.names(subset(subset_s.obj@meta.data, CTstrict == x))
+        p <- DimPlot(object = subset_s.obj,
+                     cells.highlight = cell.names,
+                     cols = "gray", order = TRUE,
+                     sizes.highlight = 2, pt.size = 0.5,
+                     label = TRUE,
+                     label.size = 6, 
+                     label.color = "blue",
+                     label.box = FALSE, reduction = "INTE_UMAP") +
+          theme(plot.title = element_text(size = 8, face = "bold")) +
+          labs(title = x, x = "UMAP_1", y = "UMAP_2", color = "Cells") +
+          scale_color_manual(labels = c("others", "selected_clone"), values = c("gray", "#f77281"))
+        return(p)
+      })) -> subplot_all_top_20_clonaltypes
+    print(subplot_all_top_20_clonaltypes)
+    cat("\n \n")
+  }
+  cat("\n")
+}
+```
+
+
+# UMAP, colonization on integrated UMAP {.tabset}
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=14, fig.height=10}
+meta.data <- s.obj@meta.data
+
+library(scales)
+
+colors <- hue_pal()(4)
+
+colonisation <- hash()
+
+for ( i in seq(1, length(unique(meta.data$stage)))){
+
+  stage.id <- unique(meta.data$stage)[[i]]
+  cat (sprintf("## Colonisation: %s \n", stage.id))
+  p <- DimPlot(object = s.obj, reduction = "INTE_UMAP", 
+                                      cells.highlight = list(colonisation = colnames(subset(s.obj, stage == stage.id))),
+                                      cols = "gray", order = TRUE, cols.highlight = colors[[i]],
+                                      sizes.highlight = 1, label = FALSE, pt.size = 0.5) +
+    ggtitle(sprintf("Colonisation: %s", stage.id))
+  print(p)
+  cat("\n \n")
+}
+
+
+```
+
+
+
+# UMAP, colonization on original UMAP {.tabset}
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=14, fig.height=10}
+meta.data <- s.obj@meta.data
+
+library(scales)
+
+colors <- hue_pal()(4)
+
+colonisation <- hash()
+
+for ( i in seq(1, length(unique(meta.data$stage)))){
+  stage.id <- unique(meta.data$stage)[[i]]
+  cat (sprintf("## Colonisation: %s \n", stage.id))
+  p <- DimPlot(object = s.obj, reduction = "RNA_UMAP", 
+               cells.highlight = list(colonisation = colnames(subset(s.obj, stage == stage.id))),
+                                      cols = "gray", order = TRUE, cols.highlight = colors[[i]],
+                                      sizes.highlight = 1, label = FALSE, pt.size = 0.5) +
+    ggtitle(sprintf("Colonisation: %s", stage.id))
+  print(p)
+  cat("\n \n")
+}
+```
+
+
+# Analysis on each colonisation
+
+```{r echo=FALSE, warning=FALSE, include=FALSE}
+##### Helper function to calculate Shannon Entropy
+calculate_shannon_entropy <- function(clone, s.obj){
+  N <- length(unique(s.obj$seurat_clusters))
+  count_clone_in_cluster <- table(subset(s.obj@meta.data, s.obj@meta.data$CTstrict == clone) %>% 
+                                    subset(select = c(CTstrict, seurat_clusters))) %>%  as.data.frame()
+  count_clone_in_cluster <- count_clone_in_cluster %>% rowwise %>% mutate(Prob = Freq / sum(count_clone_in_cluster$Freq)) %>%
+    subset(Prob != 0)
+  shannon_entropy <- -sum(count_clone_in_cluster$Prob * log2(count_clone_in_cluster$Prob))/log2(N)
+  return(shannon_entropy)
+}
+
+s.obj.colonisation <- hash()
+clone.summary.colonisation <- hash()
+
+for (group in unique(s.obj$stage)){
+  tmp <- subset(s.obj, stage == group)
+  tmp.metadata <- tmp@meta.data %>% subset(select = c(CTstrict)) %>% table() %>% as.data.frame() %>%
+    arrange(desc(Freq))
+    
+  tmp.clone.summary.colonisation <- tmp.metadata %>% rowwise() %>%
+    mutate(colonisation.Shannon = ifelse(Freq >= 5, calculate_shannon_entropy(CTstrict, tmp), NA))
+  
+  meta.data <- tmp@meta.data %>% rownames_to_column("barcode")
+  
+  meta.data <- merge(meta.data, tmp.clone.summary.colonisation, by.x = "CTstrict", by.y = "CTstrict", all.x = TRUE) %>%
+     column_to_rownames("barcode")
+  meta.data <- meta.data[row.names(tmp@meta.data), ]
+  tmp <- AddMetaData(object = tmp, metadata = meta.data$colonisation.Shannon, col.name = "colonisation.Shannon")
+  s.obj.colonisation[[group]]  <- tmp
+  clone.summary.colonisation[[group]] <- tmp.clone.summary.colonisation
+}
+```
+
+## Tables: top clone in each colonisation and their colonisation Shannon entropy  {.tabset}
+
+Note: Shannon entropies were calculated in each colonisation separately. 
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=14, fig.height=10}
+for (sample.id in names(clone.summary.colonisation)){
+  tmp.table <- clone.summary.colonisation[[sample.id]]  
+  cat(paste("\n\n### Sample: ", sample.id, "##\n"))
+  print( htmltools::tagList(datatable(tmp.table, extensions = 'Buttons',
+                filter = "top",
+                options = list(dom = 'Blfrtip',
+                               buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),
+                               lengthMenu = list(c(10,25,50,-1),
+                                                 c(10,25,50,"All")),
+                               columnDefs = list(list(
+                                 targets = "_all",
+                                 render = JS(
+                                   "function(data, type, row, meta) {",
+                                   "return type === 'display' && data != null && data.length > 100 ?",
+                                   "'<span title=\"' + data + '\">' + data.substr(0, 100) + '...</span>' : data;",
+                                   "}")
+                               ))
+                ))))
+  cat("\n \n")
+}
+```
+
+## UMAP + Shannon entropy in each colonisation {.tabset}
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=14, fig.height=10}
+for (group in names(s.obj.colonisation)){
+  tmp <- s.obj.colonisation[[group]]
+  DefaultAssay(tmp) <- "RNA"
+  cat(sprintf("### Colonisation: %s \n", group))
+
+  p <- FeaturePlot(object = tmp, reduction = "INTE_UMAP", features = c("colonisation.Shannon"), pt.size = 1) + scale_color_gradient(low = "#FFFF00", high = "#FF0000", na.value = "lightgray", limits = c(0, 1)) + ggtitle("")
+  print(p)
+  cat("\n \n")
+  
+}
+```
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=14, fig.height=10}
+```

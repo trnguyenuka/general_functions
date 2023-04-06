@@ -19,9 +19,9 @@ dir.create(path.to.output, showWarnings = FALSE, recursive = TRUE)
 
 path.to.template <- file.path(wd, "templates")
 
-clusters.to.be.removed <- c(16)
+clusters.to.be.removed <- c(9)
 
-name.of.s.obj <- "1st_dataset_removed_7_9.without_reInt.rds" 
+name.of.s.obj <- "1st_dataset_removed_7_9_removed_16.without_reInt.rds" 
 
 with.re.integration <- FALSE
 
@@ -33,7 +33,7 @@ if (with.re.integration == TRUE){
   stop("The parameter with.re.integration must be either TRUE or FALSE")
 }
 
-save.dataset.name <- "1st_dataset_removed_7_9"  # <<<<< CHANGE HERE
+save.dataset.name <- "1st_dataset_removed_7_9_t_16"  # <<<<< CHANGE HERE
 
 save.obj.name <- sprintf("%s_removed_%s.%s.rds", save.dataset.name, paste(clusters.to.be.removed, collapse = "_"), status)
 save.html.name <- str_replace(save.obj.name, ".rds", ".html")
@@ -131,16 +131,18 @@ if (with.re.integration == TRUE){
 
 saveRDS(s.obj.removed, file.path(path.to.output, save.obj.name))
 
-##### 2. Generate report from defined templates
-rmarkdown::render(input = file.path(path.to.template, "01_generate_cluster_DE_genes.Rmd"), 
-                  params = list(
-                    path.to.input.sobj = file.path(path.to.output, save.obj.name),
-                    path.to.wd = wd,
-                    dataset_name = save.obj.name,
-                    path.to.output = path.to.output
-                  ),
-                  output_file = save.html.name,
-                  output_dir = path.to.html)  
-
+generate.html <- TRUE
+if (generate.html == TRUE){
+  ##### 2. Generate report from defined templates
+  rmarkdown::render(input = file.path(path.to.template, "01_generate_cluster_DE_genes.Rmd"), 
+                    params = list(
+                      path.to.input.sobj = file.path(path.to.output, save.obj.name),
+                      path.to.wd = wd,
+                      dataset_name = save.obj.name,
+                      path.to.output = path.to.output
+                    ),
+                    output_file = save.html.name,
+                    output_dir = path.to.html)  
+}
 
 

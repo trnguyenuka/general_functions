@@ -21,7 +21,8 @@ dir.create(path.to.output, showWarnings = FALSE, recursive = TRUE)
 # input.gene.list.file <- "DE analysis between 2 clusters, Cluster 5, 10.csv" # <<<< CHANGE HERE
 # input.gene.list.file <- "DE analysis between 2 clusters, Cluster 1, 2.xlsx"
 # input.gene.list.file <- "test_cluster_4_vs_cluster_9.raw.xlsx"
-input.gene.list.file <- "test_cluster_4_vs_cluster_10.raw.xlsx"
+# input.gene.list.file <- "test_cluster_4_vs_cluster_10.raw.xlsx"
+input.gene.list.file <- "Downstream analysis, 1 sample EGFP Snapgene, higher cluster resolution (Hieu editted).xlsx"
 #####----------------------------------------------------------------------#####
 
 if (grepl(".csv", input.gene.list.file) == TRUE){
@@ -39,10 +40,22 @@ if (grepl(".csv", input.gene.list.file) == TRUE){
 
 path.to.template <- "./templates"
 
+new.col.names <- c()
+for (item in colnames(inputdf)){
+  if (item == "Gene"){
+    new.col.names <- c(new.col.names, tolower(item))
+  } else {
+    new.col.names <- c(new.col.names, item)
+  }
+}
+
+colnames(inputdf) <- new.col.names
 ##### CHECK
-if ("Gene" %in% colnames(inputdf) == FALSE | "avg_log2FC" %in% colnames(inputdf) == FALSE){
+if ("gene" %in% colnames(inputdf) == FALSE | "avg_log2FC" %in% colnames(inputdf) == FALSE){
   stop("Gene or avg_log2FC column does not exists in the data input.")
 }
+
+
 
 inputdf <- inputdf %>% arrange(desc(avg_log2FC))
 

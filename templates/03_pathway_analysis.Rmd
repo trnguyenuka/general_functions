@@ -97,7 +97,7 @@ sig.inputdf <- subset(inputdf, inputdf$p_val_adj <= 0.05)
 
 ## GO - ORA
 ```{r echo=FALSE, warning=FALSE, results='asis', fig.width=14, fig.height=14}
-input.gene.list <- sig.inputdf$Gene
+input.gene.list <- sig.inputdf$gene
 if (length(input.gene.list) != 0){
   ora.GO <- enrichGO(gene = input.gene.list,
                     OrgDb = org.Mm.eg.db,
@@ -118,7 +118,7 @@ ora.GO.sum.res  %>% mutate_if(is.numeric, round, 6) %>% create_dt()
 
 ## KEGG - ORA
 ```{r echo=FALSE, warning=FALSE, results='asis', fig.width=14, fig.height=14}
-input.gene.list <- sig.inputdf$Gene
+input.gene.list <- sig.inputdf$gene
 input.gene.list <- bitr(input.gene.list, fromType="ALIAS", toType="ENTREZID", OrgDb="org.Mm.eg.db")
 
 if (length(input.gene.list != 0)){
@@ -142,7 +142,7 @@ ora.KEGG.sum.res %>% mutate_if(is.numeric, round, 6) %>% create_dt()
 ## GO - GSEA
 ```{r echo=FALSE, warning=FALSE, results='asis', fig.width=14, fig.height=14}
 input.gene.list <- inputdf$avg_log2FC
-names(input.gene.list) <- inputdf$Gene
+names(input.gene.list) <- inputdf$gene
 
 if (length(input.gene.list != 0)){
   GSEA.GO <- gseGO(geneList = input.gene.list,
@@ -171,9 +171,9 @@ print(p)
 
 ## KEGG - GSEA
 ```{r echo=FALSE, warning=FALSE, results='asis', fig.width=14, fig.height=14}
-convertdf <- bitr(inputdf$Gene, fromType="ALIAS", toType="ENTREZID", OrgDb="org.Mm.eg.db")
+convertdf <- bitr(inputdf$gene, fromType="ALIAS", toType="ENTREZID", OrgDb="org.Mm.eg.db")
 
-convertdf <- merge(convertdf, inputdf, by.x = "ALIAS", by.y = "Gene") %>%
+convertdf <- merge(convertdf, inputdf, by.x = "ALIAS", by.y = "gene") %>%
   arrange(desc(avg_log2FC))
 convertdf <- convertdf[!duplicated(convertdf$ALIAS), ] %>% arrange(desc(avg_log2FC))
 

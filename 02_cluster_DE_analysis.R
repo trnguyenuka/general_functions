@@ -18,10 +18,10 @@ dir.create(path.to.output, showWarnings = FALSE, recursive = TRUE)
 
 path.to.template <- "./templates"
 
-name.of.s.obj <- "merged_all_first_dataset_BCR.integrated.rds" 
+name.of.s.obj <- "230228_Kopplin_Pabst_SnapGene_EGFP.res1.rds" 
 
-cluster1 <- 4 # <<<<< CHANGE HERE
-cluster2 <- 10 # <<<<< CHANGE HERE
+cluster1 <- 1 # <<<<< CHANGE HERE
+cluster2 <- 2 # <<<<< CHANGE HERE
 
 # save object name
 save.dataset.name <- "test"  # <<<<< CHANGE HERE
