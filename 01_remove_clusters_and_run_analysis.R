@@ -21,7 +21,7 @@ path.to.template <- file.path(wd, "templates")
 
 clusters.to.be.removed <- c(9)
 
-name.of.s.obj <- "1st_dataset_removed_7_9_removed_16.without_reInt.rds" 
+name.of.s.obj <- "1st_dataset_removed_7_9_and_16_removed_16.without_reInt.rds" 
 
 with.re.integration <- FALSE
 
@@ -33,7 +33,7 @@ if (with.re.integration == TRUE){
   stop("The parameter with.re.integration must be either TRUE or FALSE")
 }
 
-save.dataset.name <- "1st_dataset_removed_7_9_t_16"  # <<<<< CHANGE HERE
+save.dataset.name <- "1st_dataset_removed_7_9_and_16_and_9"  # <<<<< CHANGE HERE
 
 save.obj.name <- sprintf("%s_removed_%s.%s.rds", save.dataset.name, paste(clusters.to.be.removed, collapse = "_"), status)
 save.html.name <- str_replace(save.obj.name, ".rds", ".html")

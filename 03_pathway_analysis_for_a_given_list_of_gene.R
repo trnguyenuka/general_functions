@@ -22,7 +22,8 @@ dir.create(path.to.output, showWarnings = FALSE, recursive = TRUE)
 # input.gene.list.file <- "DE analysis between 2 clusters, Cluster 1, 2.xlsx"
 # input.gene.list.file <- "test_cluster_4_vs_cluster_9.raw.xlsx"
 # input.gene.list.file <- "test_cluster_4_vs_cluster_10.raw.xlsx"
-input.gene.list.file <- "Downstream analysis, 1 sample EGFP Snapgene, higher cluster resolution (Hieu editted).xlsx"
+# input.gene.list.file <- "Downstream analysis, 1 sample EGFP Snapgene, higher cluster resolution (Hieu editted).xlsx"
+input.gene.list.file <- "Downstream analysis, 1 sample EGFP Snapgene, higher cluster resolution.xlsx"
 #####----------------------------------------------------------------------#####
 
 if (grepl(".csv", input.gene.list.file) == TRUE){
