@@ -35,6 +35,8 @@ if (with.re.integration == TRUE){
 
 save.dataset.name <- "1st_dataset_removed_7_9_and_16_and_9"  # <<<<< CHANGE HERE
 
+generate.html <- TRUE
+
 save.obj.name <- sprintf("%s_removed_%s.%s.rds", save.dataset.name, paste(clusters.to.be.removed, collapse = "_"), status)
 save.html.name <- str_replace(save.obj.name, ".rds", ".html")
 
@@ -131,7 +133,8 @@ if (with.re.integration == TRUE){
 
 saveRDS(s.obj.removed, file.path(path.to.output, save.obj.name))
 
-generate.html <- TRUE
+
+
 if (generate.html == TRUE){
   ##### 2. Generate report from defined templates
   rmarkdown::render(input = file.path(path.to.template, "01_generate_cluster_DE_genes.Rmd"), 
